@@ -1,0 +1,131 @@
+<!--
+                     __    __               .___                         _____.__               
+_____________   _____/  |__/  |_ ___.__.   __| _/____    _____   ____   _/ ____\__| ____   ____  
+\____ \_  __ \_/ __ \   __\   __<   |  |  / __ |\__  \  /     \ /    \  \   __\|  |/    \_/ __ \ 
+|  |_> >  | \/\  ___/|  |  |  |  \___  | / /_/ | / __ \|  Y Y  \   |  \  |  |  |  |   |  \  ___/ 
+|   __/|__|    \___  >__|  |__|  / ____| \____ |(____  /__|_|  /___|  /  |__|  |__|___|  /\___  >
+|__|               \/            \/           \/     \/      \/     \/                 \/     \/ 
+
+-->
+
+<!DOCTYPE html> 
+<head> 
+  	<title>Pretty Damn Fine</title>
+ 
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script> 
+	<script src="nowjs/now.js"></script>
+	<script src="raphael.js"></script> 
+	<script src="waypoints.min.js"></script>
+	<link href="style.css" type="text/css" rel="stylesheet" />
+
+	<script>
+
+	  function disableSelection(element) {
+	   element.onselectstart = function() {
+	   return false;
+	   };
+	   element.unselectable = "on";
+	   element.style.MozUserSelect = "none";
+	   element.style.cursor = "default";
+	  }
+
+	jQuery(document).ready(function(){
+		var lasso = {
+			reference 	: 	null,
+			div			:	null,
+			x			:	0,
+			y			:	0,
+			width		:	0,
+			height		:	0
+		};
+
+		
+
+		// User wants to display document
+		$('#getbutton').click(function() {
+			// Cleanup any previously loaded pages
+			$(".page-element").waypoint("destroy");
+			$(".page-element").remove();
+
+			// Create div's for all the pages
+			var pdfUrl = $('#pdfurl').val();
+			now.getInfo(pdfUrl, function(pdfInfo) {
+				for(var i=1; i<pdfInfo["pages"]; i++) {
+					// Create a div for the page
+					$("#pdf-document").append('<div class="page-element" id="page-' + i + '"></div>');
+					$("#page-" + i).width(pdfInfo["width"])
+						.height(pdfInfo["height"])
+						.data('paper', Raphael("page-" + i, pdfInfo["width"], pdfInfo["height"]));	
+
+					// Disable drag/drop as we want to handle this
+					$("#page-" + i).bind("dragstart", function() {
+						 return false;
+					});
+
+					// Install events that happen when the page becomes visible
+		            $('#page-' + i).waypoint(function() {
+						//$(this).waypoint('destroy');
+						var pdfUrl = $('#pdfurl').val();
+						var pageNum = $(this).attr('id').split('-').pop();
+						now.pageRequest(pdfUrl, pageNum, function(path) {
+							$("#page-" + pageNum).data('paper').image(path, 0, 0, pdfInfo["width"], pdfInfo["height"]);				
+						});	
+					}, {
+						triggerOnce: true,
+						offset: '100%'		
+					});
+
+					// Selection events can happen before the page has loaded, though probably a bit useless
+					$('#page-' + i).mousedown(function(e){
+
+						lasso["x"] = e.pageX - this.offsetLeft;
+						lasso["y"] = e.pageY - this.offsetTop;
+						$(this).mousemove(function(e) {
+							lasso["width"] = e.pageX - this.offsetLeft - lasso["x"];
+							lasso["height"] = e.pageY - this.offsetTop - lasso["y"];
+
+							if(lasso["reference"] !== null) {
+								lasso["reference"].remove();
+							}
+							var paper = $(this).data('paper');
+							lasso["reference"] = paper.rect(lasso["x"], lasso["y"], lasso["width"], lasso["height"], 2);
+							lasso["reference"].attr({stroke:"#47b5c4", fill:"#47b5c4", "fill-opacity" : 0.3});
+						});
+					});
+
+					$('#page-' + i).mouseup(function(e){
+						$(this).unbind('mousemove');
+						lasso["div"] = $(this);
+
+						var pdfUrl = $('#pdfurl').val();
+						var pageNum = $(this).attr('id').split('-').pop();
+						$('#pastetext').text("processing...");
+						now.getText(pdfUrl, pageNum, lasso["x"], lasso["y"], lasso["width"], lasso["height"], function(data){
+							lasso["div"].after('<div class="page-element" style="width:' + pdfInfo["width"] + 'px"><b>' + data + '</b></div>');
+						});
+	   				});
+				}
+			});
+		});
+	});
+
+	</script> 
+</head>
+
+<body>
+	<a href="http://github.com/andrewseddon/pretty_damn_fine"><img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png" alt="Fork me on GitHub" /></a>
+
+		<div id="container">
+			<a href="http://github.com/andrewseddon/pretty_damn_fine" id="logo">Pretty Damn Fine</a> 
+
+			<p id="tagline"> 
+				   HTML5 PDF Viewer built on NodeJS. Try selecting some text.
+			</p> 
+			<div id="url-entry">
+				<input id="pdfurl" value="http://infolab.stanford.edu/pub/papers/google.pdf" title="Search" size="60" autocomplete="off" class="lst" type="text" name="q" maxlength="2048"/>
+				<button id="getbutton" type="button" class="dialog-button">View PDF</button>
+			</div>
+
+			<div id="pdf-document"></div>
+		</div>
+</body>
